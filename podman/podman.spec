@@ -51,7 +51,6 @@ BuildRequires: glib2-devel
 BuildRequires: glibc-devel
 BuildRequires: glibc-static
 BuildRequires: git
-BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: gpgme-devel
 BuildRequires: libassuan-devel
 BuildRequires: libgpg-error-devel
@@ -62,6 +61,11 @@ BuildRequires: pkgconfig
 BuildRequires: make
 BuildRequires: systemd
 BuildRequires: systemd-devel
+%if 0%{?fedora}
+BuildRequires: golang-github-cpuguy83-md2man
+%els
+BuildRequires: golang-github-cpuguy83-go-md2man
+%endif
 Requires: crun >= 0.10.2-1
 Requires: containers-common
 Requires: containernetworking-plugins >= 0.7.5-1
