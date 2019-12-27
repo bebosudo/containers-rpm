@@ -29,7 +29,7 @@ go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -
 
 Name: %{repo}
 Version: 1.12.0
-Release: 2%{?dist}
+Release: 3%{?dist}
 Summary: A command line tool used for creating OCI Images
 License: ASL 2.0
 URL: https://%{name}.io
@@ -38,7 +38,6 @@ Source: %{git0}/archive/%{commit0}/%{name}-%{shortcommit0}.tar.gz
 BuildRequires: %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires: git
 BuildRequires: glib2-devel
-BuildRequires: libseccomp-static
 BuildRequires: ostree-devel
 BuildRequires: glibc-static
 BuildRequires: go-md2man
@@ -47,6 +46,11 @@ BuildRequires: device-mapper-devel
 BuildRequires: btrfs-progs-devel
 BuildRequires: libassuan-devel
 BuildRequires: make
+%if 0%{?rhel}
+BuildRequires: libseccomp-devel
+%else
+BuildRequires: libseccomp-static
+%endif
 Requires: containers-common
 %if 0%{?fedora}
 Requires: crun >= 0.10-1
