@@ -63,7 +63,7 @@ BuildRequires: systemd
 BuildRequires: systemd-devel
 %if 0%{?fedora}
 BuildRequires: golang-github-cpuguy83-md2man
-%els
+%else
 BuildRequires: golang-github-cpuguy83-go-md2man
 %endif
 Requires: crun >= 0.10.2-1
