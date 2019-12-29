@@ -69,11 +69,11 @@ BuildRequires: golang-github-cpuguy83-md2man
 BuildRequires: golang-github-cpuguy83-go-md2man
 %endif
 
-Requires: crun >= 0.10.2-1
 Requires: containers-common
 Requires: containernetworking-plugins >= 0.7.5-1
 Requires: iptables
 Requires: nftables
+Requires: libseccomp >= 2.4.1
 Requires: conmon
 
 %if 0%{?rhel} > 7 || 0%{?fedora}
@@ -81,8 +81,8 @@ Recommends: %{name}-manpages = %{epoch}:%{version}-%{release}
 Recommends: container-selinux
 Recommends: slirp4netns >= 0.3.0-2
 Recommends: fuse-overlayfs >= 0.3-8
-Recommends: runc
-Recommends: libvarlink-util
+Recommends: libvarlink-util >= 18-1
+Recommends: runc >= 2:1.0.0-57
 %else
 Requires: %{name}-manpages = %{version}-%{release}
 Requires: container-selinux
@@ -211,7 +211,11 @@ share image (not container) storage, hence each can use or manipulate images
 %package docker
 Summary: Emulate Docker CLI using %{name}
 BuildArch: noarch
+%if 0%{?fedora}
 Requires: %{name} = %{epoch}:%{version}-%{release}
+%else
+Requires: %{name} = %{version}-%{release}
+%endif
 Conflicts: docker
 Conflicts: docker-latest
 Conflicts: docker-ce
@@ -358,7 +362,7 @@ building other packages which use import path with
 
 %if 0%{?with_unit_test} && 0%{?with_devel}
 %package unit-test-devel
-Summary:         Unit tests for %{name} package
+Summary: Unit tests for %{name} package
 %if 0%{?with_check}
 #Here comes all BuildRequires: PACKAGE the unit tests
 #in %%check section need for running
@@ -386,7 +390,6 @@ providing packages with %{import_path} prefix.
 
 %package tests
 Summary: Tests for %{name}
-
 Requires: %{name} = %{epoch}:%{version}-%{release}
 Requires: bats
 Requires: jq
@@ -416,15 +419,15 @@ connections as well.
 Summary: Man pages for the %{name} commands
 BuildArch: noarch
 
-%files manpages
-%{_mandir}/man1/%{name}*.1*
-%{_mandir}/man5/*.5*
-
 %description manpages
 Man pages for the %{name} commands
 
 %prep
 %autosetup -Sgit -n %{repo}-%{commit0}
+
+sed -i 's/install.remote: podman-remote/install.remote:/' Makefile
+sed -i 's/install.bin: podman/install.bin:/' Makefile
+rm -rf docs/containers-mounts.conf.5.md
 
 %build
 mkdir _build
@@ -459,12 +462,9 @@ export BUILDTAGS="systemd
 %gobuild -o bin/%{name}-remote %{import_path}/cmd/%{name}
 %endif
 
-%install
-sed -s 's/^runtime[ =].*"runc/runtime = "crun/' libpod.conf  -i
-sed -i 's/install.remote: podman-remote/install.remote:/' Makefile
-sed -i 's/install.bin: podman/install.bin:/' Makefile
-rm -rf docs/containers-mounts.conf.5.md
+PODMAN_VERSION=%{version} %{__make} PREFIX=%{buildroot}%{_prefix} ETCDIR=%{buildroot}%{_sysconfdir} docs
 
+%install
 install -dp %{buildroot}%{_unitdir}
 PODMAN_VERSION=%{version} %{__make} PREFIX=%{buildroot}%{_prefix} ETCDIR=%{buildroot}%{_sysconfdir} \
         install.bin \
@@ -603,6 +603,10 @@ exit 0
 %{_bindir}/%{name}-remote
 %endif
 
+%files manpages
+%{_mandir}/man1/%{name}*.1*
+%{_mandir}/man5/*.5*
+
 %files tests
 %license LICENSE
 %{_datadir}/%{name}/test
@@ -610,6 +614,7 @@ exit 0
 %changelog
 * Sat Dec 28 2019 Alberto Chiusole <bebo.sudo@gmail.com> - 1.6.2-3
 - Rebuild v1.6.2 for centos from fc31, using 1.4.4-4.el7 go build configs, without varlink
+- restore runc instead of crun (is set on fc31), not packaged for centos
 
 * Thu Oct 17 2019 RH Container Bot <rhcontainerbot@fedoraproject.org> - 2:1.6.2-2
 - bump to v1.6.2
