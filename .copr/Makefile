@@ -3,7 +3,7 @@ rpmbuild_src = $(shell rpmbuild --eval '%{_sourcedir}')
 
 prepare:
 	dnf -y install @rpm-development-tools
-	compgen -G "SOURCES/*" &>/dev/null && cp SOURCES/* $(rpmbuild_src)
+	compgen -G "SOURCES/*" &>/dev/null && cp SOURCES/* $(rpmbuild_src) || true
 	spectool -g -R $(spec)
 
 srpm: prepare
