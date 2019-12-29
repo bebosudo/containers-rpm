@@ -37,7 +37,7 @@
 %global built_tag v1.6.2
 
 Name: podman
-%if 0%{?fedora}
+%if 0%{?rhel} > 7 || 0%{?fedora}
 Epoch: 2
 %endif
 Version: 1.6.2
