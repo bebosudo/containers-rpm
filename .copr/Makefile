@@ -3,7 +3,7 @@ rpmbuild_src = $(shell rpmbuild --eval '%{_sourcedir}')
 
 prepare:
 	dnf -y install @rpm-development-tools
-	if compgen -G "*.patch" >/dev/null; then cp *.patch $(rpmbuild_src); fi
+	compgen -G "SOURCES/*" &>/dev/null && cp SOURCES/* $(rpmbuild_src)
 	spectool -g -R $(spec)
 
 srpm: prepare

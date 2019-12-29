@@ -4,10 +4,12 @@
 %global with_check 0
 %global with_unit_test 0
 
-%if 0%{?fedora}
-#### DO NOT REMOVE - NEEDED FOR CENTOS
+# Do not use the go-srpm-macros package, it breaks the build with no reason.
+%define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '-Wl,-z,relro -Wl,-z,now -specs=/usr/lib/rpm/redhat/redhat-hardened-ld '" -a -v -x %{?**};
+%define gogenerate(o:) go generate %{?**};
+
+%if 0%{?rhel} > 7 || 0%{?fedora}
 %bcond_without varlink
-%define gogenerate go generate
 %else
 %bcond_with varlink
 %endif
@@ -61,18 +63,20 @@ BuildRequires: pkgconfig
 BuildRequires: make
 BuildRequires: systemd
 BuildRequires: systemd-devel
-%if 0%{?fedora}
+%if 0%{?fedora} >= 31
 BuildRequires: golang-github-cpuguy83-md2man
 %else
 BuildRequires: golang-github-cpuguy83-go-md2man
 %endif
+
 Requires: crun >= 0.10.2-1
 Requires: containers-common
 Requires: containernetworking-plugins >= 0.7.5-1
 Requires: iptables
 Requires: nftables
 Requires: conmon
-%if 0%{?fedora}
+
+%if 0%{?rhel} > 7 || 0%{?fedora}
 Recommends: %{name}-manpages = %{epoch}:%{version}-%{release}
 Recommends: container-selinux
 Recommends: slirp4netns >= 0.3.0-2
@@ -80,12 +84,11 @@ Recommends: fuse-overlayfs >= 0.3-8
 Recommends: runc
 Recommends: libvarlink-util
 %else
-#### DO NOT REMOVE - NEEDED FOR CENTOS
 Requires: %{name}-manpages = %{version}-%{release}
 Requires: container-selinux
 Requires: slirp4netns >= 0.3.0-2
 Requires: runc >= 1.0.0-57
-Requires: libvarlink-util
+# varlink not in rhel 7
 %endif
 
 # vendored libraries
@@ -195,9 +198,12 @@ Provides: bundled(golang(k8s.io/utils)) = 258e2a2fa64568210fbd6267cf1d8fd87c3cb8
 daemonless tool.  %{name} provides a Docker-CLI comparable command line that
 eases the transition from other container engines and allows the management of
 pods, containers and images.  Simply put: alias docker=%{name}.
-Most %{name} commands can be run as a regular user, without requiring additional privileges.
+Most %{name} commands can be run as a regular user, without requiring
+additional privileges.
 
-%{name} uses Buildah(1) internally to create container images. Both tools share image (not container) storage, hence each can use or manipulate images (but not containers) created by the other.
+%{name} uses Buildah(1) internally to create container images. Both tools
+share image (not container) storage, hence each can use or manipulate images
+(but not containers) created by the other.
 
 %{summary}
 %{repo} Simple management tool for pods, containers and images
@@ -342,7 +348,7 @@ Provides: golang(%{import_path}/pkg/registrar) = %{epoch}:%{version}-%{release}
 Provides: golang(%{import_path}/pkg/storage) = %{epoch}:%{version}-%{release}
 Provides: golang(%{import_path}/utils) = %{epoch}:%{version}-%{release}
 
-%description -n libpod-devel
+%description -n %{name}-devel
 %{summary}
 
 This package contains library source intended for
@@ -371,13 +377,13 @@ Requires: golang(github.com/urfave/cli)
 
 %description unit-test-devel
 %{summary}
-libpod provides a library for applications looking to use the Container Pod concept popularized by Kubernetes.
+%{name} provides a library for applications looking to use the Container Pod
+concept popularized by Kubernetes.
 
 This package contains unit tests for project
 providing packages with %{import_path} prefix.
 %endif
 
-%if 0%{?fedora}
 %package tests
 Summary: Tests for %{name}
 
@@ -390,6 +396,7 @@ Requires: jq
 
 This package contains system tests for %{name}
 
+%if 0%{?rhel} > 7 || 0%{?fedora}
 %package remote
 Summary: (Experimental) Remote client for managing %{name} containers
 Recommends: %{name}-manpages = %{epoch}:%{version}-%{release}
@@ -428,16 +435,27 @@ popd
 ln -s vendor src
 export GOPATH=$(pwd)/_build:$(pwd)
 export GO111MODULE=off
-%gogenerate ./cmd/%{name}/varlink/...
 
-# build %%{name}
-export BUILDTAGS="systemd varlink seccomp exclude_graphdriver_devicemapper $(hack/btrfs_installed_tag.sh) $(hack/btrfs_tag.sh) $(hack/libdm_tag.sh) $(hack/ostree_tag.sh) $(hack/selinux_tag.sh)"
+%if 0%{?rhel} > 7 || 0%{?fedora}
+%gogenerate ./cmd/%{name}/varlink/...
+%endif
+
+export BUILDTAGS="systemd
+%if 0%{?rhel} > 7 || 0%{?fedora}
+                  varlink
+                  remoteclient
+%endif
+                  seccomp
+                  exclude_graphdriver_devicemapper
+                  $(hack/btrfs_installed_tag.sh)
+                  $(hack/btrfs_tag.sh)
+                  $(hack/libdm_tag.sh)
+                  $(hack/ostree_tag.sh)
+                  $(hack/selinux_tag.sh)"
+
 %gobuild -o bin/%{name} %{import_path}/cmd/%{name}
 
-%if 0%{?fedora}
-#### DO NOT REMOVE - NEEDED FOR CENTOS
-# build %%{name}-remote
-export BUILDTAGS="remoteclient systemd varlink seccomp exclude_graphdriver_devicemapper $(hack/btrfs_installed_tag.sh) $(hack/btrfs_tag.sh) $(hack/libdm_tag.sh) $(hack/ostree_tag.sh) $(hack/selinux_tag.sh)"
+%if 0%{?rhel} > 7 || 0%{?fedora}
 %gobuild -o bin/%{name}-remote %{import_path}/cmd/%{name}
 %endif
 
@@ -450,7 +468,7 @@ rm -rf docs/containers-mounts.conf.5.md
 install -dp %{buildroot}%{_unitdir}
 PODMAN_VERSION=%{version} %{__make} PREFIX=%{buildroot}%{_prefix} ETCDIR=%{buildroot}%{_sysconfdir} \
         install.bin \
-%if 0%{?fedora}
+%if 0%{?rhel} > 7 || 0%{?fedora}
         install.remote \
 %endif
         install.man \
@@ -505,6 +523,9 @@ done
 sort -u -o devel.file-list devel.file-list
 %endif
 
+# https://bugzilla.redhat.com/show_bug.cgi?id=1657303#c3 varlink not in rhel 7
+rm -f %{buildroot}/{%{_unitdir},%{_userunitdir}}/io.%{name}.{service,socket}
+
 %check
 %if 0%{?with_check} && 0%{?with_unit_test} && 0%{?with_devel}
 %if ! 0%{?with_bundled}
@@ -549,10 +570,13 @@ exit 0
 %{_datadir}/zsh/site-functions/_%{name}
 %config(noreplace) %{_sysconfdir}/cni/net.d/87-%{name}-bridge.conflist
 %{_datadir}/containers/%{repo}.conf
+
+%if 0%{?rhel} > 7 || 0%{?fedora}
 %{_unitdir}/io.%{name}.service
 %{_unitdir}/io.%{name}.socket
 %{_userunitdir}/io.%{name}.service
 %{_userunitdir}/io.%{name}.socket
+%endif
 
 %{_usr}/lib/tmpfiles.d/%{name}.conf
 
@@ -561,7 +585,7 @@ exit 0
 %{_mandir}/man1/docker*.1*
 
 %if 0%{?with_devel}
-%files -n libpod-devel -f devel.file-list
+%files -n %{name}-devel -f devel.file-list
 %license LICENSE
 %doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md code-of-conduct.md transfer.md
 %dir %{gopath}/src/%{provider}.%{provider_tld}/%{project}
@@ -573,20 +597,19 @@ exit 0
 %doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md code-of-conduct.md transfer.md
 %endif
 
-#### DO NOT REMOVE - NEEDED FOR CENTOS
-%if 0%{?fedora}
+%if 0%{?rhel} > 7 || 0%{?fedora}
 %files remote
 %license LICENSE
 %{_bindir}/%{name}-remote
+%endif
 
 %files tests
 %license LICENSE
 %{_datadir}/%{name}/test
-%endif
 
 %changelog
-* Sat Dec 28 2019 Alberto Chiusole <bebo.sudo@gmail.com> - 2:1.6.2-3
-- rebuild from fc31 testing for centos 7
+* Sat Dec 28 2019 Alberto Chiusole <bebo.sudo@gmail.com> - 1.6.2-3
+- Rebuild v1.6.2 for centos from fc31, using 1.4.4-4.el7 go build configs, without varlink
 
 * Thu Oct 17 2019 RH Container Bot <rhcontainerbot@fedoraproject.org> - 2:1.6.2-2
 - bump to v1.6.2
