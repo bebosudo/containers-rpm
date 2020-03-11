@@ -8,7 +8,7 @@
 %define gobuild(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '-Wl,-z,relro -Wl,-z,now -specs=/usr/lib/rpm/redhat/redhat-hardened-ld '" -a -v -x %{?**};
 %define gogenerate(o:) go generate %{?**};
 
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 %bcond_without varlink
 %else
 %bcond_with varlink
@@ -21,31 +21,45 @@
 %global debug_package %{nil}
 %endif
 
-%global provider github
-%global provider_tld com
-%global project containers
-%global repo libpod
+%define provider github
+%define provider_tld com
+%define project containers
+%define repo libpod
 # https://github.com/containers/libpod
-%global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
-%global import_path %{provider_prefix}
-%global git0 https://%{provider}.%{provider_tld}/%{project}/%{repo}
-%global commit0 f3ffda1e08f19e9a6a88484136b5eed76533f21a
-%global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
+%define provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
+%define import_path %{provider_prefix}
+%define git0 https://%{provider}.%{provider_tld}/%{project}/%{repo}
+%define commit0 444a19cdd2e6108c75f6c1aadc1a2a9138a8bd73
+%define shortcommit0 %(c=%{commit0}; echo ${c:0:7})
+
+%define repo_plugins dnsname
+# https://github.com/containers/libpod
+%define import_path_plugins %{provider}.%{provider_tld}/%{project}/%{repo_plugins}
+%define git_plugins https://github.com/containers/dnsname
+%define commit_plugins f5af33dedcfc5e707e5560baa4a72f8d96a968fe
+%define shortcommit_plugins %(c=%{commit_plugins}; echo ${c:0:7})
 
 # Used for comparing with latest upstream tag
 # to decide whether to autobuild (non-rawhide only)
-%global built_tag v1.6.2
+%define built_tag v1.8.1
+%define built_tag_strip %(b=%{built_tag}; echo ${b:1})
+%define download_url https://github.com/containers/libpod/archive/%{built_tag}.tar.gz
 
 Name: podman
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 Epoch: 2
+%else
+Epoch: 0
 %endif
-Version: 1.6.2
-Release: 3%{?dist}
+Version: %{built_tag_strip}
+Release: 1%{?dist}
 Summary: Manage Pods, Containers and Container Images
 License: ASL 2.0
 URL: https://%{name}.io/
-Source0: %{git0}/archive/%{commit0}/%{repo}-%{shortcommit0}.tar.gz
+Source0: %{download_url}
+Source1: https://github.com/containers/dnsname/archive/f5af33dedcfc5e707e5560baa4a72f8d96a968fe/dnsname-f5af33d.tar.gz
+Provides: %{name}-manpages = %{epoch}:%{version}-%{release}
+Obsoletes: %{name}-manpages < %{epoch}:%{version}-%{release}
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires: %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires: btrfs-progs-devel
@@ -75,8 +89,8 @@ Requires: iptables
 Requires: nftables
 Requires: libseccomp >= 2.4.1
 Requires: conmon
-
-%if 0%{?rhel} > 7 || 0%{?fedora}
+Requires: %{name}-plugins = %{epoch}:%{version}-%{release}
+%if 0%{?fedora} || 0%{?centos} >= 8
 Recommends: %{name}-manpages = %{epoch}:%{version}-%{release}
 Recommends: container-selinux
 Recommends: slirp4netns >= 0.3.0-2
@@ -201,9 +215,9 @@ pods, containers and images.  Simply put: alias docker=%{name}.
 Most %{name} commands can be run as a regular user, without requiring
 additional privileges.
 
-%{name} uses Buildah(1) internally to create container images. Both tools
-share image (not container) storage, hence each can use or manipulate images
-(but not containers) created by the other.
+%{name} uses Buildah(1) internally to create container images.
+Both tools share image (not container) storage, hence each can use or
+manipulate images (but not containers) created by the other.
 
 %{summary}
 %{repo} Simple management tool for pods, containers and images
@@ -211,11 +225,7 @@ share image (not container) storage, hence each can use or manipulate images
 %package docker
 Summary: Emulate Docker CLI using %{name}
 BuildArch: noarch
-%if 0%{?fedora}
 Requires: %{name} = %{epoch}:%{version}-%{release}
-%else
-Requires: %{name} = %{version}-%{release}
-%endif
 Conflicts: docker
 Conflicts: docker-latest
 Conflicts: docker-ce
@@ -352,7 +362,7 @@ Provides: golang(%{import_path}/pkg/registrar) = %{epoch}:%{version}-%{release}
 Provides: golang(%{import_path}/pkg/storage) = %{epoch}:%{version}-%{release}
 Provides: golang(%{import_path}/utils) = %{epoch}:%{version}-%{release}
 
-%description -n %{name}-devel
+%description -n %{repo}-devel
 %{summary}
 
 This package contains library source intended for
@@ -381,8 +391,8 @@ Requires: golang(github.com/urfave/cli)
 
 %description unit-test-devel
 %{summary}
-%{name} provides a library for applications looking to use the Container Pod
-concept popularized by Kubernetes.
+%{repo} provides a library for applications looking to use the
+Container Pod concept popularized by Kubernetes.
 
 This package contains unit tests for project
 providing packages with %{import_path} prefix.
@@ -390,16 +400,18 @@ providing packages with %{import_path} prefix.
 
 %package tests
 Summary: Tests for %{name}
+
 Requires: %{name} = %{epoch}:%{version}-%{release}
 Requires: bats
 Requires: jq
+Requires: skopeo
 
 %description tests
 %{summary}
 
 This package contains system tests for %{name}
 
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 %package remote
 Summary: (Experimental) Remote client for managing %{name} containers
 Recommends: %{name}-manpages = %{epoch}:%{version}-%{release}
@@ -422,31 +434,62 @@ BuildArch: noarch
 %description manpages
 Man pages for the %{name} commands
 
+%package plugins
+Summary: Plugins for %{name}
+
+%description plugins
+This plugin sets up the use of dnsmasq on a given CNI network so
+that Pods can resolve each other by name.  When configured,
+the pod and its IP address are added to a network specific hosts file
+that dnsmasq will read in.  Similarly, when a pod
+is removed from the network, it will remove the entry from the hosts
+file.  Each CNI network will have its own dnsmasq instance.
+
 %prep
-%autosetup -Sgit -n %{repo}-%{commit0}
+%autosetup -Sgit -n %{repo}-%{built_tag_strip}
+
+# untar dnsname
+tar zxf %{SOURCE1}
 
 sed -i 's/install.remote: podman-remote/install.remote:/' Makefile
 sed -i 's/install.bin: podman/install.bin:/' Makefile
 rm -rf docs/containers-mounts.conf.5.md
 
+
 %build
+export GO111MODULE=off
+
+# build plugins first cause we don't wanna use podman's buildtags
+pushd dnsname-%{commit_plugins}
+mkdir _build
+pushd _build
+mkdir -p src/%{provider}.%{provider_tld}/%{project}
+ln -s ../../../../ src/%{import_path_plugins}
+popd
+ln -s vendor src
+export GOPATH=$(pwd)/_build:$(pwd)
+%gobuild -o bin/dnsname %{import_path_plugins}/plugins/meta/dnsname
+popd
+
+export GOPATH=$(pwd)/_build:$(pwd)
 mkdir _build
 pushd _build
 mkdir -p src/%{provider}.%{provider_tld}/%{project}
 ln -s ../../../../ src/%{import_path}
 popd
 ln -s vendor src
-export GOPATH=$(pwd)/_build:$(pwd)
-export GO111MODULE=off
 
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 %gogenerate ./cmd/%{name}/varlink/...
 %endif
 
 export BUILDTAGS="systemd
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
                   varlink
                   remoteclient
+%else
+                  exclude_graphdriver_btrfs
+                  containers_image_ostree_stub
 %endif
                   seccomp
                   exclude_graphdriver_devicemapper
@@ -468,7 +511,7 @@ PODMAN_VERSION=%{version} %{__make} PREFIX=%{buildroot}%{_prefix} ETCDIR=%{build
 install -dp %{buildroot}%{_unitdir}
 PODMAN_VERSION=%{version} %{__make} PREFIX=%{buildroot}%{_prefix} ETCDIR=%{buildroot}%{_sysconfdir} \
         install.bin \
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
         install.remote \
 %endif
         install.man \
@@ -482,6 +525,23 @@ mv pkg/hooks/README.md pkg/hooks/README-hooks.md
 # install libpod.conf
 install -dp %{buildroot}%{_datadir}/containers
 install -p -m 644 %{repo}.conf %{buildroot}%{_datadir}/containers
+
+# install plugins
+pushd dnsname-%{commit_plugins}
+%{__make} PREFIX=%{_prefix} DESTDIR=%{buildroot} install
+popd
+
+# do not include docker and podman-remote man pages in main package
+for file in `find %{buildroot}%{_mandir}/man[15] -type f | sed "s,%{buildroot},," | grep -v -e remote -e docker`; do
+    echo "$file*" >> podman.file-list
+done
+
+# do not install remote manpages on centos7
+%if ! 0%{?fedora} && 0%{?centos} < 8
+rm -rf %{buildroot}%{_mandir}/man1/docker-remote.1
+rm -rf %{buildroot}%{_mandir}/man1/%{name}-remote.1
+rm -rf %{buildroot}%{_mandir}/man5/%{name}-remote.conf.5
+%endif
 
 # source codes for building projects
 %if 0%{?with_devel}
@@ -560,9 +620,9 @@ exit 0
 #define license tag if not already defined
 %{!?_licensedir:%global license %doc}
 
-%files
+%files -f podman.file-list
 %license LICENSE
-%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md code-of-conduct.md transfer.md
+%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md transfer.md
 %{_bindir}/%{name}
 %{_datadir}/bash-completion/completions/*
 # By "owning" the site-functions dir, we don't need to Require zsh
@@ -571,7 +631,7 @@ exit 0
 %config(noreplace) %{_sysconfdir}/cni/net.d/87-%{name}-bridge.conflist
 %{_datadir}/containers/%{repo}.conf
 
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 %{_unitdir}/io.%{name}.service
 %{_unitdir}/io.%{name}.socket
 %{_userunitdir}/io.%{name}.service
@@ -583,21 +643,22 @@ exit 0
 %files docker
 %{_bindir}/docker
 %{_mandir}/man1/docker*.1*
+%{_usr}/lib/tmpfiles.d/%{name}-docker.conf
 
 %if 0%{?with_devel}
-%files -n %{name}-devel -f devel.file-list
+%files -n %{repo}-devel -f devel.file-list
 %license LICENSE
-%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md code-of-conduct.md transfer.md
+%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md transfer.md
 %dir %{gopath}/src/%{provider}.%{provider_tld}/%{project}
 %endif
 
 %if 0%{?with_unit_test} && 0%{?with_devel}
 %files unit-test-devel -f unit-test-devel.file-list
 %license LICENSE
-%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md code-of-conduct.md transfer.md
+%doc README.md CONTRIBUTING.md pkg/hooks/README-hooks.md install.md transfer.md
 %endif
 
-%if 0%{?rhel} > 7 || 0%{?fedora}
+%if 0%{?fedora} || 0%{?centos} >= 8
 %files remote
 %license LICENSE
 %{_bindir}/%{name}-remote
@@ -609,9 +670,20 @@ exit 0
 
 %files tests
 %license LICENSE
-%{_datadir}/%{name}/test
+%dir %{_datadir}/%{name}/test
+%dir %{_datadir}/%{name}/test/system
+%{_datadir}/%{name}/test/system/*
+
+%files plugins
+%license dnsname-%{commit_plugins}/LICENSE
+%doc dnsname-%{commit_plugins}/{README.md,README_PODMAN.md}
+%{_libexecdir}/cni/dnsname
 
 %changelog
+* Wed Mar 11 2020 Alberto Chiusole <bebo.sudo@gmail.com> - 1.8.1-1
+- update to v1.8.1 using fc31 koji package
+- add -plugins subpackage using dnsname
+
 * Sat Dec 28 2019 Alberto Chiusole <bebo.sudo@gmail.com> - 1.6.2-3
 - Rebuild v1.6.2 for centos from fc31, using 1.4.4-4.el7 go build configs, without varlink
 - restore runc instead of crun (is set on fc31), not packaged for centos
