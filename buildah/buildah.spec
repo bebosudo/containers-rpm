@@ -13,27 +13,29 @@
 go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -extldflags '%__global_ldflags'" -a -v -x %{?**};
 %endif
 
-%global provider github
-%global provider_tld com
-%global project containers
-%global repo buildah
+%define provider github
+%define provider_tld com
+%define project containers
+%define repo buildah
 # https://github.com/containers/buildah
-%global import_path %{provider}.%{provider_tld}/%{project}/%{repo}
-%global git0 https://%{import_path}
-%global commit0 6cc46567d1c7011bc99ac99ecc6239f2d3df0aa9
-%global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
+%define import_path %{provider}.%{provider_tld}/%{project}/%{repo}
+%define git0 https://%{import_path}
+%define commit0 066e446c81005028f1619d237b4d81370b48e93d
+%define shortcommit0 %(c=%{commit0}; echo ${c:0:7})
 
 # Used for comparing with latest upstream tag
 # to decide whether to autobuild (non-rawhide only)
-%global built_tag v1.12.0
+%define built_tag v1.14.2
+%define built_tag_strip %(b=%{built_tag}; echo ${b:1})
+%define download_url https://github.com/containers/%{name}/archive/%{built_tag}.tar.gz
 
 Name: %{repo}
-Version: 1.12.0
-Release: 3%{?dist}
+Version: %{built_tag_strip}
+Release: 1%{?dist}
 Summary: A command line tool used for creating OCI Images
 License: ASL 2.0
 URL: https://%{name}.io
-Source: %{git0}/archive/%{commit0}/%{name}-%{shortcommit0}.tar.gz
+Source: %{download_url}
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
 BuildRequires: %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang}
 BuildRequires: git
@@ -59,7 +61,7 @@ Recommends: slirp4netns >= 0.3-0
 Recommends: fuse-overlayfs
 %else
 #### DO NOT REMOVE - NEEDED FOR CENTOS
-Requires: libseccomp >= 2.4.1-0
+Requires: libseccomp
 Requires: container-selinux
 Requires: slirp4netns >= 0.3-0
 %endif
@@ -73,8 +75,23 @@ or
 * save container's root file system layer to create a new image
 * delete a working container or an image
 
+%package tests
+Summary: Tests for %{name}
+
+Requires: %{name} = %{version}-%{release}
+Requires: bats
+Requires: bzip2
+Requires: podman
+Requires: golang
+Requires: jq
+
+%description tests
+%{summary}
+
+This package contains system tests for %{name}
+
 %prep
-%autosetup -Sgit -n %{name}-%{commit0}
+%autosetup -Sgit -n %{name}-%{built_tag_strip}
 sed -i 's/GOMD2MAN =/GOMD2MAN ?=/' docs/Makefile
 sed -i '/docs install/d' Makefile
 
@@ -89,14 +106,22 @@ mv vendor src
 
 export GOPATH=$(pwd)/_build:$(pwd)
 export BUILDTAGS='seccomp selinux'
+%if 0%{?rhel}
+export BUILDTAGS="exclude_graphdriver_btrfs exclude_graphdriver_devicemapper containers_image_ostree_stub"
+%endif
 export GO111MODULE=off
 %gobuild -o %{name} %{import_path}/cmd/%{name}
+%gobuild -o imgtype %{import_path}/tests/imgtype
 GOMD2MAN=go-md2man %{__make} -C docs
 
 %install
 export GOPATH=$(pwd)/_build:$(pwd):%{gopath}
 make DESTDIR=%{buildroot} PREFIX=%{_prefix} install install.completions
 make DESTDIR=%{buildroot} PREFIX=%{_prefix} -C docs install
+
+install -d -p %{buildroot}/%{_datadir}/%{name}/test/system
+cp -pav tests/. %{buildroot}/%{_datadir}/%{name}/test/system
+cp imgtype %{buildroot}/%{_bindir}/%{name}-imgtype
 
 #define license tag if not already defined
 %{!?_licensedir:%global license %doc}
@@ -110,7 +135,16 @@ make DESTDIR=%{buildroot} PREFIX=%{_prefix} -C docs install
 %dir %{_datadir}/bash-completion/completions
 %{_datadir}/bash-completion/completions/%{name}
 
+%files tests
+%license LICENSE
+%{_bindir}/%{name}-imgtype
+%{_datadir}/%{name}/test
+
+
 %changelog
+* Wed Mar 11 2020 Alberto Chiusole <bebo.sudo@gmail.com> - 1.14.2-1
+- update to v1.14.2 using fc31 package
+
 * Fri Dec 27 2019 Alberto Chiusole <bebo.sudo@gmail.com> - 1.12.0-3
 - rebuild from fc31 testing for centos 7
 
