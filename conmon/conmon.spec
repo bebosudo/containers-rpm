@@ -8,28 +8,29 @@
 %global debug_package %{nil}
 %endif
 
-%global provider github
-%global provider_tld com
-%global project containers
-%global repo conmon
+%define provider github
+%define provider_tld com
+%define project containers
+%define repo conmon
 # https://github.com/containers/conmon
-%global import_path %{provider}.%{provider_tld}/%{project}/%{repo}
-%global commit0 5ca7df27cb3a6f1edaab1a40fcc61cc6c16d9308
-%global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
-%global git0 https://%{import_path}
+%define import_path %{provider}.%{provider_tld}/%{project}/%{repo}
+%define commit0 7a830be343876ac381c965c7429a7fb9b3d7a609
+%define shortcommit0 %(c=%{commit0}; echo ${c:0:7})
+%define git0 https://%{import_path}
 
 # Used for comparing with latest upstream tag
 # to decide whether to autobuild (non-rawhide only)
-#%%global built_tag v2.0.2
+%define built_tag v2.0.11
+%define built_tag_strip %(b=%{built_tag}; echo ${b:1})
 
 Name: %{repo}
 Epoch: 2
-Version: 2.0.8
+Version: 2.0.11
 Release: 1%{?dist}
 Summary: OCI container runtime monitor
 License: ASL 2.0
 URL: %{git0}
-Source0: %{git0}/archive/%{commit0}/%{name}-%{shortcommit0}.tar.gz
+Source0: %{url}/archive/%{built_tag}.tar.gz
 BuildRequires: gcc
 BuildRequires: git
 BuildRequires: glib2-devel
@@ -38,7 +39,7 @@ BuildRequires: glib2-devel
 %{summary}.
 
 %prep
-%autosetup -Sgit -n %{name}-%{commit0}
+%autosetup -Sgit -n %{name}-%{built_tag_strip}
 
 %build
 %{__make} all
@@ -56,6 +57,10 @@ BuildRequires: glib2-devel
 %{_libexecdir}/crio/%{name}
 
 %changelog
+* Wed Mar 11 2020 Alberto Chiusole <bebo.sudo@gmail.com> - 2:2.0.11-1
+- update to 2.0.11
+
+
 * Mon Dec 16 2019 Jindrich Novy <jnovy@redhat.com> - 2:2.0.8-1
 - bump to v2.0.8
 
