@@ -58,6 +58,9 @@ License: ASL 2.0
 URL: https://%{name}.io/
 Source0: %{download_url}
 Source1: https://github.com/containers/dnsname/archive/f5af33dedcfc5e707e5560baa4a72f8d96a968fe/dnsname-f5af33d.tar.gz
+# https://github.com/containers/buildah/issues/1806
+Patch0: https://raw.githubusercontent.com/bebosudo/containers-rpm/master/podman/chown_substitution.patch
+
 Provides: %{name}-manpages = %{epoch}:%{version}-%{release}
 Obsoletes: %{name}-manpages < %{epoch}:%{version}-%{release}
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
@@ -680,6 +683,9 @@ exit 0
 %{_libexecdir}/cni/dnsname
 
 %changelog
+* Sun Mar 15 2020 Alberto Chiusole <bebo.sudo@gmail.com> - 1.8.1-2
+- patch for chown in add/copy: https://github.com/containers/buildah/issues/1806
+
 * Wed Mar 11 2020 Alberto Chiusole <bebo.sudo@gmail.com> - 1.8.1-1
 - update to v1.8.1 using fc31 koji package
 - add -plugins subpackage using dnsname
