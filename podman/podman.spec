@@ -52,7 +52,7 @@ Epoch: 2
 Epoch: 0
 %endif
 Version: %{built_tag_strip}
-Release: 1%{?dist}
+Release: 2%{?dist}
 Summary: Manage Pods, Containers and Container Images
 License: ASL 2.0
 URL: https://%{name}.io/
